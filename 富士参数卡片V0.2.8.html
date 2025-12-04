@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>富士参数卡片 V0.2.8 </title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --box-bg: rgba(0, 0, 0, 0.45); 
+            --inner-light: rgba(255, 255, 255, 0.2);
+            --text-main: #ffffff;
+            --text-sub: rgba(255, 255, 255, 0.75);
+            --accent-color: #007aff;
+            --bg-color: #1e1e1e;
+            --panel-color: #2b2b2b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 40px;
+            min-height: 100vh;
+            color: #eee;
+            box-sizing: border-box;
+            overflow-x: hidden;
+        }
+
+        /* --- 1. 左侧控制台 --- */
+        .controls {
+            background: var(--panel-color);
+            padding: 25px;
+            border-radius: 16px;
+            width: 340px; 
+            flex-shrink: 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            position: sticky;
+            top: 20px;
+            max-height: 90vh; 
+            overflow-y: auto;
+            z-index: 100;
+        }
+        
+        .controls::-webkit-scrollbar { width: 6px; }
+        .controls::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        .controls::-webkit-scrollbar-track { background: #222; }
+
+        .controls h3 { margin-top: 0; padding-bottom: 15px; border-bottom: 1px solid #444; font-size: 18px; color: #fff; text-align: center; letter-spacing: 1px;}
+
+        .control-group { margin-bottom: 15px; }
+        .control-group label { display: block; font-size: 13px; color: #bbb; margin-bottom: 6px; font-weight: 600;}
+        
+        .control-group input[type="text"], 
+        .control-group input[type="number"], 
+        .control-group select {
+            width: 100%; padding: 10px; background: #383838; border: 1px solid #555; color: #fff; border-radius: 6px; 
+            font-size: 14px; box-sizing: border-box; appearance: none; outline: none; transition: border 0.2s;
+        }
+        .control-group input:focus, .control-group select:focus { border-color: var(--accent-color); }
+
+        .control-group select {
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right .7em top 50%;
+            background-size: .65em auto;
+            cursor: pointer;
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        
+        button.download-btn {
+            width: 100%; padding: 16px; background-color: var(--accent-color); color: white; border: none;
+            border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 20px; font-size: 16px;
+            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.4); transition: transform 0.1s, background 0.2s;
+        }
+        button.download-btn:hover { background-color: #0062cc; transform: translateY(-2px); }
+        button.download-btn:active { transform: scale(0.98); }
+
+        /* --- 2. 右侧预览区域 (Wrapper) --- */
+        .preview-wrapper {
+            width: 440px; 
+            height: 600px;
+            position: relative;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* --- 3. 实际卡片 (高分辨率尺寸) --- */
+        .card-container {
+            position: absolute;
+            top: 0; left: 0;
+            /* 保持小数，用于预览 */
+            width: 763.25px; 
+            height: 954px; 
+            border-radius: 0;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            transform-origin: top left;
+            transform: scale(0.55); 
+        }
+
+        #bg-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+            transform: scale(1.02); 
+        }
+
+        .card-content {
+            position: relative; z-index: 2; width: 100%; height: 100%;
+            display: flex; flex-direction: column; box-sizing: border-box;
+            padding-top: 45px; 
+            padding-bottom: 0; 
+        }
+
+        /* Header */
+        .header {
+            padding: 0 55px 10px 55px; 
+            display: flex; justify-content: space-between; align-items: flex-start;
+            flex-shrink: 0;
+        }
+        
+        .text-group h1 { 
+            margin: 0; 
+            font-size: 42px; 
+            font-weight: 700; 
+            color: #fff; 
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            line-height: 1.2;
+            min-height: 50px; 
+        }
+        .text-group p { 
+            margin: 8px 0 0; 
+            font-size: 20px; 
+            color: rgba(255,255,255,0.85); 
+            text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            line-height: 1.2;
+            min-height: 24px; 
+        }
+
+        .logo { text-align: right; color: white; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .logo .brand { font-weight: 900; font-size: 26px; letter-spacing: 1px; } 
+        .logo .style { font-weight: 300; font-size: 26px; letter-spacing: 2px; }
+
+        /* Photo */
+        .photo-wrapper { padding: 0 55px; margin-bottom: 15px; flex-shrink: 0; }
+        
+        .main-photo {
+            width: 100%; height: 0; padding-bottom: 66.66%; 
+            background: rgba(255,255,255,0.1); border-radius: 20px; 
+            overflow: hidden; box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+            cursor: pointer; position: relative; border: 2px solid rgba(255,255,255,0.1);
+        }
+        
+        #preview-bg-div {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+        }
+
+        .upload-hint {
+            position: absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+            color: rgba(255,255,255,0.8); font-size: 20px; pointer-events: none; text-align: center;
+            z-index: 2;
+        }
+
+        /* Params */
+        .params-container {
+            padding: 0 55px; 
+            display: flex; 
+            flex-direction: column;
+            gap: 12px; 
+            justify-content: flex-start;
+            flex-grow: 0; 
+            margin-bottom: 0; 
+        }
+
+        .top-row { display: grid; grid-template-columns: 1.3fr 1.3fr 0.8fr; gap: 12px; }
+
+        .p-box {
+            height: 105px; 
+            background: var(--box-bg); border-radius: 18px;
+            display: flex; flex-direction: column;
+            padding: 8px 8px 0 8px; 
+            border: 2px solid rgba(255,255,255,0.05);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+            box-sizing: border-box;
+        }
+
+        .inner-light-box {
+            background: var(--inner-light); width: 100%; flex-grow: 1; 
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            flex-direction: column;
+        }
+        .inner-light-box .val-text {
+            font-size: 22px; font-weight: 700; color: #fff;
+            text-transform: uppercase; text-align: center;
+            line-height: 1.2; padding: 0 4px;
+        }
+        
+        .bottom-label-area {
+            height: 30px; 
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; color: var(--text-sub); width: 100%;
+        }
+
+        .wb-data { 
+            font-family: inherit;
+            font-size: 16px; 
+            font-weight: 400;     
+            color: var(--text-sub); 
+            letter-spacing: 0;
+            white-space: nowrap; 
+        }
+        
+        .grain-dual { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.2; text-align: center; }
+        .grain-off { font-size: 26px; font-weight: 700; color: #fff; }
+
+        .grid-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+
+        .g-item {
+            background: var(--box-bg); 
+            border-radius: 14px;
+            height: 70px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            border: 2px solid rgba(255,255,255,0.05);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .g-item .val { font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .g-item .lbl { font-size: 13px; color: rgba(255,255,255,0.7); transform: scale(0.95); white-space: nowrap; }
+
+        /* Footer Wrapper */
+        .footer-wrapper { 
+            flex-grow: 1; 
+            display: flex; 
+            flex-direction: column;
+            justify-content: center; 
+            align-items: center;     
+            margin: 0;
+            min-height: 40px; 
+        }
+
+        .footer-pill {
+            height: auto; 
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.15);
+            
+            /* 上1px, 下4px -> 文字视觉上移，对抗渲染下沉 */
+            padding: 1px 16px 4px 16px; 
+            
+            border-radius: 50px;
+            font-size: 12px; 
+            line-height: 1; 
+            white-space: nowrap;
+            
+            font-weight: 500; color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            
+            backdrop-filter: blur(12px); 
+            border: 1.5px solid rgba(255,255,255,0.2);
+            
+            letter-spacing: 1px; text-transform: none; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        @media (max-width: 900px) {
+            body { flex-direction: column; align-items: center; gap: 20px; padding: 20px; }
+            .controls { width: 100%; max-width: 375px; position: static; }
+            .preview-wrapper { width: 100%; height: 550px; transform: scale(0.9); transform-origin: top center; }
+            .card-container { transform: scale(0.45); left: 50%; translate: -50% 0; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <h3>📷 富士参数分享卡</h3>
+        <div class="control-group">
+            <label>上传图片</label>
+            <input type="file" id="uploadInput" accept="image/*">
+        </div>
+        
+        <div class="grid-2">
+            <div class="control-group"><label>标题</label><input type="text" value="NC氛围感人像" oninput="setT('t-main',this.value)"></div>
+            <div class="control-group"><label>副标题</label><input type="text" value="富士色彩配方 X-S10" oninput="setT('t-sub',this.value)"></div>
+        </div>
+
+        <div class="control-group"><label>胶片模拟</label>
+            <select onchange="setT('v-film',this.value)">
+                <option value="CLASSIC CHROME">CLASSIC CHROME</option>
+                <option value="CLASSIC Neg." selected>CLASSIC Neg.</option>
+                <option value="NOSTALGIC Neg.">NOSTALGIC Neg.</option>
+                <option value="PROVIA / Standard">PROVIA / Standard</option>
+                <option value="Velvia / Vivid">Velvia / Vivid</option>
+                <option value="ASTIA / Soft">ASTIA / Soft</option>
+                <option value="PRO Neg. Hi">PRO Neg. Hi</option>
+                <option value="PRO Neg. Std">PRO Neg. Std</option>
+                <option value="ETERNA / Cinema">ETERNA / Cinema</option>
+                <option value="ETERNA BLEACH BYPASS">ETERNA BLEACH BYPASS</option>
+                <option value="ACROS">ACROS</option>
+                <option value="ACROS + Ye Filter">ACROS + Ye</option>
+                <option value="ACROS + R Filter">ACROS + R</option>
+                <option value="ACROS + G Filter">ACROS + G</option>
+                <option value="MONOCHROME">MONOCHROME</option>
+                <option value="MONOCHROME + Ye Filter">MONO + Ye</option>
+                <option value="MONOCHROME + R Filter">MONO + R</option>
+                <option value="MONOCHROME + G Filter">MONO + G</option>
+                <option value="SEPIA">SEPIA</option>
+                <option value="REALA ACE">REALA ACE</option>
+            </select>
+        </div>
+
+        <div class="control-group"><label>白平衡</label>
+            <select id="wbModeSelect" onchange="updateWB()">
+                <option value="AUTO 白色优先">AUTO 白色优先</option>
+                <option value="AUTO">AUTO</option>
+                <option value="AUTO 环境优先">AUTO 环境优先</option>
+                <option value="日光" selected>日光</option>
+                <option value="阴天">阴天</option>
+                <option value="荧光灯 1">荧光灯 1</option>
+                <option value="荧光灯 2">荧光灯 2</option>
+                <option value="荧光灯 3">荧光灯 3</option>
+                <option value="白炽灯">白炽灯</option>
+                <option value="潜水">潜水</option>
+                <option value="Temp">色温 (K值)</option>
+            </select>
+            <input type="number" id="wbKInput" placeholder="输入K值 (2500-10000)" min="2500" max="10000" style="display:none; margin-top:5px;" oninput="updateWB()">
+        </div>
+
+        <div class="control-group"><label>白平衡漂移 (R / B)</label>
+            <div class="grid-2">
+                <input type="number" id="wbR" min="-9" max="9" value="0" placeholder="Red" oninput="updateWBShift()">
+                <input type="number" id="wbB" min="-9" max="9" value="0" placeholder="Blue" oninput="updateWBShift()">
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="control-group"><label>动态范围</label>
+                <select onchange="setT('g3',this.value)">
+                    <option value="Auto">Auto</option>
+                    <option value="DR100">DR100</option>
+                    <option value="DR200">DR200</option>
+                    <option value="DR400" selected>DR400</option>
+                </select>
+            </div>
+            <div class="control-group"><label>ISO (手动)</label>
+                <input type="text" value="-" placeholder="如 640" oninput="setT('g10',this.value || '-')">
+            </div>
+        </div>
+        
+        <div class="control-group"><label>颗粒效果</label>
+            <div class="grid-2">
+                <select id="grainRough" onchange="updateGrain()">
+                    <option value="无" selected>无</option>
+                    <option value="弱">弱</option>
+                    <option value="强">强</option>
+                </select>
+                <select id="grainSize" onchange="updateGrain()">
+                    <option value="小" selected>小</option>
+                    <option value="大">大</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="control-group"><label>色彩效果</label>
+                <select onchange="setT('g1',this.value)">
+                    <option value="关">关</option>
+                    <option value="弱">弱</option>
+                    <option value="强" selected>强</option>
+                </select>
+            </div>
+            <div class="control-group"><label>FX 蓝色</label>
+                <select onchange="setT('g2',this.value)">
+                    <option value="关">关</option>
+                    <option value="弱" selected>弱</option>
+                    <option value="强">强</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="control-group"><label>高光</label>
+                <input type="number" value="-2" step="0.5" min="-2" max="4" oninput="setT('g4', formatNum(this.value))">
+            </div>
+            <div class="control-group"><label>阴影</label>
+                <input type="number" value="-2" step="0.5" min="-2" max="4" oninput="setT('g5', formatNum(this.value))">
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="control-group"><label>色彩</label>
+                <input type="number" value="0" step="1" min="-4" max="4" oninput="setT('g6', formatNum(this.value))">
+            </div>
+            <div class="control-group"><label>锐度</label>
+                <input type="number" value="0" step="1" min="-4" max="4" oninput="setT('g7', formatNum(this.value))">
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="control-group"><label>高ISO降噪</label>
+                <input type="number" value="0" step="1" min="-4" max="4" oninput="setT('g8', formatNum(this.value))">
+            </div>
+            <div class="control-group"><label>清晰度</label>
+                <input type="number" value="0" step="1" min="-5" max="5" oninput="setT('g9', formatNum(this.value))">
+            </div>
+        </div>
+
+        <hr style="border:0; border-top:1px dashed #444; margin:10px 0;">
+        <div class="control-group"><label>👤 作者名称</label><input type="text" value="开开" oninput="setT('v-author', 'Made By ' + this.value)"></div>
+
+        <button class="download-btn" onclick="generateCard()">⬇️ 下载高清原图 (3053x3816)</button>
+    </div>
+
+    <!-- 右侧：预览Wrapper -->
+    <div class="preview-wrapper">
+        <div class="card-container" id="target-card">
+            <div id="bg-layer"></div>
+
+            <div class="card-content">
+                <div class="header">
+                    <div class="text-group">
+                        <h1 id="t-main">NC氛围感人像</h1>
+                        <p id="t-sub">富士色彩配方 X-S10</p>
+                    </div>
+                    <div class="logo">
+                        <div class="brand">FUJIFILM</div>
+                        <div class="style">STYLE</div>
+                    </div>
+                </div>
+
+                <div class="photo-wrapper">
+                    <div class="main-photo" onclick="document.getElementById('uploadInput').click()">
+                        <!-- Div Background 确保比例绝对正确 -->
+                        <div id="preview-bg-div"></div>
+                        <div class="upload-hint" id="hint">
+                            <span style="font-size:36px;">+</span><br>上传图片
+                        </div>
+                    </div>
+                </div>
+
+                <div class="params-container">
+                    <div class="top-row">
+                        <div class="p-box">
+                            <div class="inner-light-box">
+                                <div class="val-text" id="v-film">CLASSIC Neg.</div>
+                            </div>
+                            <div class="bottom-label-area">胶片模拟</div>
+                        </div>
+
+                        <div class="p-box">
+                            <div class="inner-light-box">
+                                <div class="val-text" id="v-wb-main" style="font-size: 28px;">日光</div>
+                            </div>
+                            <div class="bottom-label-area wb-data" id="v-wb-sub">Red: 0 Blue: 0</div>
+                        </div>
+
+                        <div class="p-box">
+                            <div class="inner-light-box" style="background: transparent;" id="grainContainer"> 
+                                <div class="grain-off">关</div>
+                            </div>
+                            <div class="bottom-label-area">颗粒效果</div>
+                        </div>
+                    </div>
+
+                    <div class="grid-row">
+                        <div class="g-item"><div class="val" id="g1">强</div><div class="lbl">色彩效果</div></div>
+                        <div class="g-item"><div class="val" id="g2">弱</div><div class="lbl">FX蓝色</div></div>
+                        <div class="g-item"><div class="val" id="g3">DR400</div><div class="lbl">动态范围</div></div>
+                        <div class="g-item"><div class="val" id="g4">-2</div><div class="lbl">高光</div></div>
+                        <div class="g-item"><div class="val" id="g5">-2</div><div class="lbl">阴影</div></div>
+                        
+                        <div class="g-item"><div class="val" id="g6">0</div><div class="lbl">色彩</div></div>
+                        <div class="g-item"><div class="val" id="g7">0</div><div class="lbl">锐度</div></div>
+                        <div class="g-item"><div class="val" id="g8">0</div><div class="lbl">高ISO降噪</div></div>
+                        <div class="g-item"><div class="val" id="g9">0</div><div class="lbl">清晰度</div></div>
+                        <div class="g-item"><div class="val" id="g10">-</div><div class="lbl">ISO</div></div>
+                    </div>
+                </div>
+
+                <div class="footer-wrapper">
+                    <div class="footer-pill" id="v-author">
+                        Made By 开开
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setT(id, val) { document.getElementById(id).innerText = val; }
+
+        function formatNum(val) {
+            val = parseFloat(val);
+            if (val > 0) return "+" + val;
+            return val;
+        }
+
+        function updateWB() {
+            const mode = document.getElementById('wbModeSelect').value;
+            const input = document.getElementById('wbKInput');
+            const display = document.getElementById('v-wb-main');
+
+            if (mode === 'Temp') {
+                input.style.display = 'block';
+                let kVal = input.value;
+                display.innerText = (kVal || '????') + 'K';
+            } else {
+                input.style.display = 'none';
+                display.innerText = mode;
+            }
+        }
+
+        function updateWBShift() {
+            const r = document.getElementById('wbR').value;
+            const b = document.getElementById('wbB').value;
+            const rTxt = formatNum(r);
+            const bTxt = formatNum(b);
+            document.getElementById('v-wb-sub').innerText = `Red: ${rTxt} Blue: ${bTxt}`;
+        }
+
+        function updateGrain() {
+            const rough = document.getElementById('grainRough').value; 
+            const size = document.getElementById('grainSize').value;   
+            const container = document.getElementById('grainContainer');
+
+            if (rough === '无') {
+                container.innerHTML = '<div class="grain-off">关</div>';
+            } else {
+                container.innerHTML = `
+                    <div class="grain-dual">${rough}</div>
+                    <div class="grain-dual">${size}</div>
+                `;
+            }
+        }
+
+        document.getElementById('uploadInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const url = evt.target.result;
+                const previewBgDiv = document.getElementById('preview-bg-div');
+                previewBgDiv.style.backgroundImage = `url(${url})`;
+                document.getElementById('hint').style.display = 'none';
+                generateBlurredBackground(url);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function generateBlurredBackground(srcUrl) {
+            const img = new Image();
+            img.crossOrigin = "Anonymous"; 
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const w = 800; 
+                const h = 800 * (img.height / img.width);
+                canvas.width = w; canvas.height = h;
+                ctx.drawImage(img, 0, 0, w, h);
+                ctx.filter = 'blur(10px) brightness(0.7) saturate(1.2)'; 
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = w; tempCanvas.height = h;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(canvas, 0, 0);
+                ctx.clearRect(0, 0, w, h);
+                ctx.drawImage(tempCanvas, 0, 0);
+                document.getElementById('bg-layer').style.backgroundImage = `url(${canvas.toDataURL()})`;
+            };
+            img.src = srcUrl;
+        }
+
+        function generateCard() {
+            const node = document.getElementById('target-card');
+            const btn = document.querySelector('.download-btn');
+            const originalText = btn.innerText;
+            btn.innerText = "生成 3053x3816 高清图中...";
+            
+            html2canvas(node, {
+                scale: 4, 
+                useCORS: true, 
+                // 关键修复：设置背景色为纯黑，消除右侧白线
+                backgroundColor: "#000000", 
+                onclone: (clonedDoc) => {
+                    const bgDiv = clonedDoc.getElementById('bg-layer');
+                    bgDiv.style.backgroundSize = "cover";
+                    bgDiv.style.backgroundPosition = "center";
+                    
+                    const prevDiv = clonedDoc.getElementById('preview-bg-div');
+                    prevDiv.style.backgroundSize = "cover";
+                    prevDiv.style.backgroundPosition = "center";
+                    
+                    const container = clonedDoc.getElementById('target-card');
+                    container.style.transform = "none";
+                    
+                    // 额外保险：强制克隆节点的宽度为整数，避免小数像素误差
+                    container.style.width = "764px";
+                }
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'fuji_style_3053x3816.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                btn.innerText = originalText;
+            });
+        }
+    </script>
+</body>
+</html>
